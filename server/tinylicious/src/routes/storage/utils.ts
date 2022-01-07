@@ -30,6 +30,6 @@ export function handleResponse<T>(
 }
 
 export function getGitDir(store: nconf.Provider, tenantId: string) {
-    const directory = store.get("storage");
+    const directory = store.get("storage:directory");
     return path.join(directory, `./${tenantId}`);
 }

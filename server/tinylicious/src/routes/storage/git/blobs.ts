@@ -8,6 +8,7 @@ import { Router } from "express";
 import * as git from "isomorphic-git";
 import nconf from "nconf";
 import * as utils from "../utils";
+import { createFs } from "./filesystem/filesystem";
 
 export async function createBlob(
     store: nconf.Provider,
@@ -16,8 +17,9 @@ export async function createBlob(
     body: ICreateBlobParams,
 ): Promise<ICreateBlobResponse> {
     const buffer = Buffer.from(body.content, body.encoding);
-
+    const fs = createFs(store);
     const sha = await git.writeObject({
+        fs,
         dir: utils.getGitDir(store, tenantId),
         type: "blob",
         object: buffer,
@@ -36,7 +38,8 @@ export async function getBlob(
     sha: string,
     useCache: boolean,
 ): Promise<IBlob> {
-    const gitObj = await git.readObject({ dir: utils.getGitDir(store, tenantId), oid: sha });
+    const fs = createFs(store);
+    const gitObj = await git.readObject({ fs, dir: utils.getGitDir(store, tenantId), oid: sha });
     const buffer = gitObj.object as Buffer;
 
     const result: IBlob = {
@@ -110,9 +113,9 @@ export function create(store: nconf.Provider): Router {
                 }
                 response.status(200).write(Buffer.from(blob.content, "base64"), () => response.end());
             },
-            (error) => {
-                response.status(400).json(error);
-            });
+                (error) => {
+                    response.status(400).json(error);
+                });
         });
 
     return router;

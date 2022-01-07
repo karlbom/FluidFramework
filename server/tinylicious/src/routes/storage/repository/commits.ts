@@ -9,6 +9,7 @@ import * as git from "isomorphic-git";
 import nconf from "nconf";
 import { queryParamToNumber, queryParamToString } from "../../../utils";
 import * as utils from "../utils";
+import { createFs } from "../git/filesystem/filesystem";
 
 export async function getCommits(
     store: nconf.Provider,
@@ -17,7 +18,9 @@ export async function getCommits(
     sha: string,
     count: number,
 ): Promise<ICommitDetails[]> {
+    const fs = createFs(store);
     const descriptions = await git.log({
+        fs,
         depth: count,
         dir: utils.getGitDir(store, tenantId),
         ref: sha,

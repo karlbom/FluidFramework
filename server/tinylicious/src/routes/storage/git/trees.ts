@@ -8,6 +8,7 @@ import { Router } from "express";
 import * as git from "isomorphic-git";
 import nconf from "nconf";
 import * as utils from "../utils";
+import { createFs } from "./filesystem/filesystem";
 
 export async function createTree(
     store: nconf.Provider,
@@ -25,9 +26,10 @@ export async function createTree(
 
         return entry;
     });
-
+    const fs = createFs(store);
     const treeDescription: git.TreeDescription = { entries };
     const sha = await git.writeObject({
+        fs,
         dir: utils.getGitDir(store, tenantId),
         type: "tree",
         object: treeDescription,
@@ -45,9 +47,11 @@ export async function getTree(
     useCache: boolean,
 ): Promise<ITree> {
     let returnEntries;
+    const fs = createFs(store);
 
     if (recursive) {
         returnEntries = await git.walkBeta2({
+            fs,
             dir: utils.getGitDir(store, tenantId),
             map: (async (path, [head]) => {
                 if (path === ".") {
@@ -63,10 +67,10 @@ export async function getTree(
                     url: "",
                 };
             }) as any,
-            trees: [git.TREE({ ref: sha } as any)],
+            trees: [git.TREE({ fs, ref: sha } as any)],
         });
     } else {
-        const treeObject = await git.readObject({ dir: utils.getGitDir(store, tenantId), oid: sha });
+        const treeObject = await git.readObject({ fs, dir: utils.getGitDir(store, tenantId), oid: sha });
         const description = treeObject.object as git.TreeDescription;
 
         returnEntries = description.entries.map((tree) => {

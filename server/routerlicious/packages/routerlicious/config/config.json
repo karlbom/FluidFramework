@@ -45,7 +45,12 @@
         "endpoint": "zookeeper:2181"
     },
     "storage": {
-        "enableWholeSummaryUpload": false
+        "enableWholeSummaryUpload": false,
+        "backend": "FS",
+        "s3": {
+            "region": "us-west-2",
+            "bucket": "routerlicious_summaries"
+        }
     },
     "alfred": {
         "kafkaClientId": "alfred",

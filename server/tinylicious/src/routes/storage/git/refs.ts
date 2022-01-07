@@ -8,6 +8,7 @@ import { Router } from "express";
 import * as git from "isomorphic-git";
 import nconf from "nconf";
 import * as utils from "../utils";
+import { createFs } from "./filesystem/filesystem";
 
 function refToIRef(ref: string, sha: string): IRef {
     return {
@@ -26,7 +27,9 @@ export async function getRefs(
     tenantId: string,
     authorization: string,
 ): Promise<IRef[]> {
+    const fs = createFs(store);
     const branches = await git.listBranches({
+        fs,
         dir: utils.getGitDir(store, tenantId),
     });
 
@@ -39,7 +42,10 @@ export async function getRef(
     authorization: string,
     ref: string,
 ): Promise<IRef> {
+    const fs = createFs(store);
+
     const resolved = await git.resolveRef({
+        fs,
         dir: utils.getGitDir(store, tenantId),
         ref,
     });
@@ -53,7 +59,10 @@ export async function createRef(
     authorization: string,
     params: ICreateRefParams,
 ): Promise<IRef> {
+    const fs = createFs(store);
+
     await git.writeRef({
+        fs,
         dir: utils.getGitDir(store, tenantId),
         ref: params.ref,
         value: params.sha,
@@ -69,6 +78,8 @@ export async function updateRef(
     ref: string,
     params: IPatchRefParams,
 ): Promise<IRef> {
+    const fs = createFs(store);
+
     const dir = utils.getGitDir(store, tenantId);
 
     // Current code - or nodegit - takes in updates without the /refs input - need to resolve the behavior and
@@ -77,6 +88,7 @@ export async function updateRef(
 
     // There is no updateRef in iso-git so we instead delete/write
     await git.writeRef({
+        fs,
         dir,
         force: true,
         ref: rebasedRef,

@@ -9,9 +9,22 @@
     },
     "foreman": {
         "permissions": {
-            "paparazziQueue": ["snapshot", "spell", "intel", "translation"],
-            "augloopQueue": ["augmentation"],
-            "headlessQueue": ["chain-snapshot", "chain-intel", "chain-translation", "chain-spell", "chain-cache"]
+            "paparazziQueue": [
+                "snapshot",
+                "spell",
+                "intel",
+                "translation"
+            ],
+            "augloopQueue": [
+                "augmentation"
+            ],
+            "headlessQueue": [
+                "chain-snapshot",
+                "chain-intel",
+                "chain-translation",
+                "chain-spell",
+                "chain-cache"
+            ]
         }
     },
     "alfred": {
@@ -32,7 +45,15 @@
             "scribeDeltas": "scribeDeltas"
         }
     },
-    "storage": "/var/tmp/tinylicious",
+    "storage": {
+        "directory": "/var/tmp/tinylicious",
+        "enableWholeSummaryUpload": false,
+        "backend": "S3",
+        "s3": {
+            "region": "us-west-2",
+            "bucket": "routerlicious-summaries"
+        }
+    },
     "db": {
         "inMemory": true,
         "path": "/var/tmp/db"

@@ -2,12 +2,12 @@
  * Copyright (c) Microsoft Corporation and contributors. All rights reserved.
  * Licensed under the MIT License.
  */
-
 import { ICommit, ICreateCommitParams } from "@fluidframework/gitresources";
 import { Router } from "express";
 import * as git from "isomorphic-git";
 import nconf from "nconf";
 import * as utils from "../utils";
+import { createFs } from "./filesystem/filesystem";
 
 export async function createCommit(
     store: nconf.Provider,
@@ -31,7 +31,10 @@ export async function createCommit(
         committer: author,
     };
 
+    const fs = createFs(store);
+
     const sha = await git.writeObject({
+        fs,
         dir: utils.getGitDir(store, tenantId),
         type: "commit",
         object: commitDescription,
@@ -55,7 +58,9 @@ export async function getCommit(
     sha: string,
     useCache: boolean,
 ): Promise<ICommit> {
-    const commit = await git.readObject({ dir: utils.getGitDir(store, tenantId), oid: sha });
+    const fs = createFs(store);
+
+    const commit = await git.readObject({ fs, dir: utils.getGitDir(store, tenantId), oid: sha });
     const description = commit.object as git.CommitDescription;
 
     return {
