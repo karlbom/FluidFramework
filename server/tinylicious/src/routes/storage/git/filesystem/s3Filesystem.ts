@@ -1,5 +1,6 @@
 import type { Readable } from "stream";
 import { S3, S3ClientConfig } from "@aws-sdk/client-s3";
+import { encode, decode } from "isomorphic-textencoder";
 import { IBackend, EncodingOpts, StatLike } from "./filesystem";
 
 function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
@@ -18,11 +19,16 @@ export class S3PromisifiedFileSystem implements IBackend {
         this.client = new S3(config);
     }
     async readFile(filepath: string, opts: EncodingOpts): Promise<string | Uint8Array> {
+        const path = this.normalizePath(filepath);
         try {
-            const data = await this.client.getObject({ Bucket: this.bucket, Key: filepath });
+            const data = await this.client.getObject({ Bucket: this.bucket, Key: path });
             const stream = data.Body as Readable;
             if (stream) {
                 const array = await streamToUint8Array(stream);
+
+                if (opts.encoding === "utf8") {
+                    return decode(array) as string;
+                }
                 return array;
             } else {
                 // TODO(marcus): figure out the behaviour of readFile in node fs does it throw?
@@ -36,9 +42,21 @@ export class S3PromisifiedFileSystem implements IBackend {
             throw e;
         }
     }
-    async writeFile(filepath: string, data: string | Uint8Array, opts: EncodingOpts): Promise<void> {
+    private normalizePath(filepath: string) {
+        return filepath.startsWith("/") ? filepath.slice(1) : filepath;
+    }
+    async writeFile(filepath: string, input: string | Uint8Array, opts: EncodingOpts): Promise<void> {
+        const path = this.normalizePath(filepath);
         try {
-            await this.client.putObject({ Bucket: this.bucket, Key: filepath, Body: data });
+            let data = input;
+            const { encoding = "utf8" } = opts;
+            if (typeof data === "string") {
+                if (encoding !== "utf8") {
+                    throw new Error('Only "utf8" encoding is supported in writeFile');
+                }
+                data = encode(data);
+            }
+            await this.client.putObject({ Bucket: this.bucket, Key: path, Body: data });
         } catch (error) {
             const typed = error as unknown as any;
             const e = new Error(typed.message) as any;
@@ -58,14 +76,25 @@ export class S3PromisifiedFileSystem implements IBackend {
     }
     async readdir(filepath: string, opts: any): Promise<string[]> {
         try {
-            const result = await this.client.listObjects({ Bucket: this.bucket, Delimiter: "/", Prefix: filepath });
+            const path = this.normalizePath(filepath);
+            const result = await this.client.listObjects({ Bucket: this.bucket, Delimiter: "/", Prefix: path });
             // TODO(marcus): pagination
-            // TODO(marcus): Key likely needs to be sliced? to not contain the parent directy path?
-            if (result.Contents) {
-                return result.Contents.map((c) => c.Key);
-            } else {
-                throw new Error("Not found");
+            const files_folders: string[] = [];
+            if (result.CommonPrefixes) {
+                result.CommonPrefixes.forEach((p) => {
+                    const subfolders = p.Prefix.slice(path.length, p.Prefix.length - 1);
+                    files_folders.push(subfolders);
+                });
             }
+            if (result.Contents) {
+                result.Contents.forEach((c) => {
+                    const file = c.Key.slice(path.length, c.Key.endsWith("/") ? c.Key.length - 1 : undefined);
+                    if (file.length > 0) {
+                        files_folders.push(file);
+                    }
+                });
+            }
+            return files_folders;
         } catch (error) {
             const typed = error as unknown as any;
             const e = new Error(typed.message) as any;
@@ -75,15 +104,17 @@ export class S3PromisifiedFileSystem implements IBackend {
         }
     }
     async mkdir(filepath: string, opts: any): Promise<void> {
+        const path = this.normalizePath(filepath);
         await this.client.putObject({
             Bucket: this.bucket,
-            Key: filepath.endsWith("/") ? filepath : `${filepath}/`,
+            Key: path.endsWith("/") ? path : `${path}/`,
         });
     }
     async rmdir(filepath: string, opts: any): Promise<void> {
+        const path = this.normalizePath(filepath);
         await this.client.deleteObject({
             Bucket: this.bucket,
-            Key: filepath.endsWith("/") ? filepath : `${filepath}/`,
+            Key: filepath.endsWith("/") ? path : `${path}/`,
         });
     }
     async stat(filepath: string, opts: any): Promise<StatLike> {
@@ -135,5 +166,9 @@ export class S3PromisifiedFileSystem implements IBackend {
                 mtimeMs: result.LastModified.getTime() / 1000,
             };
         }
+    }
+
+    saveSuperblock() {
+        // TODO(marcus): not sure about the purpose but it needs to exist
     }
 }
