@@ -18,34 +18,61 @@ export class S3PromisifiedFileSystem implements IBackend {
         this.client = new S3(config);
     }
     async readFile(filepath: string, opts: EncodingOpts): Promise<string | Uint8Array> {
-        const data = await this.client.getObject({ Bucket: this.bucket, Key: filepath });
-        const stream = data.Body as Readable;
-        if (stream) {
-            const array = await streamToUint8Array(stream);
-            return array;
-        } else {
-            // TODO(marcus): figure out the behaviour of readFile in node fs does it throw?
-            // copy throw behaviour of FS
-            throw new Error("no stream found");
+        try {
+            const data = await this.client.getObject({ Bucket: this.bucket, Key: filepath });
+            const stream = data.Body as Readable;
+            if (stream) {
+                const array = await streamToUint8Array(stream);
+                return array;
+            } else {
+                // TODO(marcus): figure out the behaviour of readFile in node fs does it throw?
+                // copy throw behaviour of FS
+                throw new Error("no stream found");
+            }
+        } catch (error) {
+            const typed = error as unknown as any;
+            const e = new Error(typed.message) as any;
+            e.code = "ENOENT";
+            throw e;
         }
     }
     async writeFile(filepath: string, data: string | Uint8Array, opts: EncodingOpts): Promise<void> {
-        await this.client.putObject({ Bucket: this.bucket, Key: filepath, Body: data });
+        try {
+            await this.client.putObject({ Bucket: this.bucket, Key: filepath, Body: data });
+        } catch (error) {
+            const typed = error as unknown as any;
+            const e = new Error(typed.message) as any;
+            e.code = "ENOENT";
+            throw e;
+        }
     }
     async unlink(filepath: string, opts: any): Promise<void> {
-        await this.client.deleteObject({ Bucket: this.bucket, Key: filepath });
+        try {
+            await this.client.deleteObject({ Bucket: this.bucket, Key: filepath });
+        } catch (error) {
+            const typed = error as unknown as any;
+            const e = new Error(typed.message) as any;
+            e.code = "ENOENT";
+            throw e;
+        }
     }
     async readdir(filepath: string, opts: any): Promise<string[]> {
-        const result = await this.client.listObjects({ Bucket: this.bucket, Delimiter: "/", Prefix: filepath });
-        // TODO(marcus): pagination
-        // TODO(marcus): Key likely needs to be sliced? to not contain the parent directy path?
-        if (result.Contents) {
-            return result.Contents.map((c) => c.Key);
-        } else {
-            throw new Error("Not found");
+        try {
+            const result = await this.client.listObjects({ Bucket: this.bucket, Delimiter: "/", Prefix: filepath });
+            // TODO(marcus): pagination
+            // TODO(marcus): Key likely needs to be sliced? to not contain the parent directy path?
+            if (result.Contents) {
+                return result.Contents.map((c) => c.Key);
+            } else {
+                throw new Error("Not found");
+            }
+        } catch (error) {
+            const typed = error as unknown as any;
+            const e = new Error(typed.message) as any;
+            // TODO(marcus): Can throw ENOENT and ENODIR make sure the behvious makes sense
+            e.code = "ENOENT";
+            throw e;
         }
-
-        throw new Error("Method not implemented.");
     }
     async mkdir(filepath: string, opts: any): Promise<void> {
         await this.client.putObject({
