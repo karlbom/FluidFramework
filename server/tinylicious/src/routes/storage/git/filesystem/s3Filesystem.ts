@@ -3,6 +3,8 @@ import { S3, S3ClientConfig } from "@aws-sdk/client-s3";
 import { encode, decode } from "isomorphic-textencoder";
 import { IBackend, EncodingOpts, StatLike } from "./filesystem";
 
+const SHA_MATCHER = new RegExp("([0-9a-f]{4,40}-[0-9a-f]{4,40}-[0-9a-f]{4,40}-[0-9a-f]{4,40}-)[0-9a-f]{4,40}");
+
 function streamToUint8Array(stream: Readable): Promise<Uint8Array> {
     return new Promise<Buffer>((resolve, reject) => {
         const chunks: Buffer[] = [];
@@ -43,7 +45,14 @@ export class S3PromisifiedFileSystem implements IBackend {
         }
     }
     private normalizePath(filepath: string) {
-        return filepath.startsWith("/") ? filepath.slice(1) : filepath;
+        let p = filepath.startsWith("/") ? filepath.slice(1) : filepath;
+        const found_sha = SHA_MATCHER.exec(p);
+        if (!!found_sha && !p.includes("objects")) {
+            const start = p.slice(0, p.indexOf(".git/") + 5);
+            const sha = found_sha[0];
+            p = `${start}refs/heads/${sha}`;
+        }
+        return p;
     }
     async writeFile(filepath: string, input: string | Uint8Array, opts: EncodingOpts): Promise<void> {
         const path = this.normalizePath(filepath);
@@ -61,6 +70,8 @@ export class S3PromisifiedFileSystem implements IBackend {
             const typed = error as unknown as any;
             const e = new Error(typed.message) as any;
             e.code = "ENOENT";
+            console.log("WRITE FILE FAILED FOR ", path);
+
             throw e;
         }
     }
@@ -75,8 +86,8 @@ export class S3PromisifiedFileSystem implements IBackend {
         }
     }
     async readdir(filepath: string, opts: any): Promise<string[]> {
+        const path = this.normalizePath(filepath);
         try {
-            const path = this.normalizePath(filepath);
             const result = await this.client.listObjects({ Bucket: this.bucket, Delimiter: "/", Prefix: path });
             // TODO(marcus): pagination
             const files_folders: string[] = [];
