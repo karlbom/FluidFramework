@@ -41,10 +41,10 @@ export class RiddlerResources implements IResources {
 export class RiddlerResourcesFactory implements IResourcesFactory<RiddlerResources> {
     public async create(config: Provider): Promise<RiddlerResources> {
         // Database connection
-        const mongoUrl = config.get("mongo:endpoint") as string;
-        const bufferMaxEntries = config.get("mongo:bufferMaxEntries") as number | undefined;
-        const mongoFactory = new services.MongoDbFactory(mongoUrl, bufferMaxEntries);
-        const mongoManager = new MongoManager(mongoFactory);
+        const serviceFactory = new services.RouterlicousDbFactoryFactory(config);
+        const factory = await serviceFactory.create();
+
+        const mongoManager = new MongoManager(factory);
         const tenantsCollectionName = config.get("mongo:collectionNames:tenants");
         const secretManager = new services.SecretManager();
 

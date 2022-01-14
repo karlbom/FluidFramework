@@ -10,19 +10,19 @@ import { deleteSummarizedOps, executeOnInterval, FluidServiceErrorCode } from "@
 import { Provider } from "nconf";
 
 export async function create(config: Provider): Promise<IPartitionLambdaFactory> {
-    const mongoUrl = config.get("mongo:endpoint") as string;
     const mongoExpireAfterSeconds = config.get("mongo:expireAfterSeconds") as number;
     const deltasCollectionName = config.get("mongo:collectionNames:deltas");
     const documentsCollectionName = config.get("mongo:collectionNames:documents");
     const createCosmosDBIndexes = config.get("mongo:createCosmosDBIndexes") as boolean;
-    const bufferMaxEntries = config.get("mongo:bufferMaxEntries") as number | undefined;
-    const mongoFactory = new services.MongoDbFactory(mongoUrl, bufferMaxEntries);
+    const serviceFactory = new services.RouterlicousDbFactoryFactory(config);
+    const factory = await serviceFactory.create();
+
     const softDeletionRetentionPeriodMs = config.get("mongo:softDeletionRetentionPeriodMs") as number;
     const offlineWindowMs = config.get("mongo:offlineWindowMs") as number;
     const softDeletionEnabled = config.get("mongo:softDeletionEnabled") as boolean;
     const permanentDeletionEnabled = config.get("mongo:permanentDeletionEnabled") as boolean;
     const deletionIntervalMs = config.get("mongo:deletionIntervalMs") as number;
-    const mongoManager = new MongoManager(mongoFactory, false);
+    const mongoManager = new MongoManager(factory, false);
 
     const db = await mongoManager.getDatabase();
     const documentsCollection: ICollection<IDocument> = db.collection(documentsCollectionName);
@@ -48,7 +48,7 @@ export async function create(config: Provider): Promise<IPartitionLambdaFactory>
 
     if (mongoExpireAfterSeconds > 0) {
         if (createCosmosDBIndexes) {
-            await opCollection.createTTLIndex({_ts:1}, mongoExpireAfterSeconds);
+            await opCollection.createTTLIndex({ _ts: 1 }, mongoExpireAfterSeconds);
         } else {
             await opCollection.createTTLIndex(
                 {

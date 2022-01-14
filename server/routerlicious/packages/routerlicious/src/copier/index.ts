@@ -11,11 +11,10 @@ import { Provider } from "nconf";
 // Establish a connection to Mongo, get the 'rawdeltas' collection and invoke
 // the rest of the Copier instantiation:
 export async function create(config: Provider): Promise<IPartitionLambdaFactory> {
-    const mongoUrl = config.get("mongo:endpoint") as string;
-    const bufferMaxEntries = config.get("mongo:bufferMaxEntries") as number | undefined;
+    const serviceFactory = new services.RouterlicousDbFactoryFactory(config);
+    const factory = await serviceFactory.create();
     const collectionName = config.get("mongo:collectionNames:rawdeltas");
-    const mongoFactory = new services.MongoDbFactory(mongoUrl, bufferMaxEntries);
-    const mongoManager = new MongoManager(mongoFactory, false);
+    const mongoManager = new MongoManager(factory, false);
 
     const db = await mongoManager.getDatabase();
     const collection = db.collection(collectionName);

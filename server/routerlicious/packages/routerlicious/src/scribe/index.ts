@@ -5,7 +5,7 @@
 
 import { ScribeLambdaFactory } from "@fluidframework/server-lambdas";
 import { createDocumentRouter } from "@fluidframework/server-routerlicious-base";
-import { createProducer, MongoDbFactory, TenantManager } from "@fluidframework/server-services";
+import { createProducer, RouterlicousDbFactoryFactory, TenantManager } from "@fluidframework/server-services";
 import {
     DefaultServiceConfiguration,
     IDocument,
@@ -16,12 +16,10 @@ import {
 import { Provider } from "nconf";
 
 export async function scribeCreate(config: Provider): Promise<IPartitionLambdaFactory> {
-    // Access config values
-    const mongoUrl = config.get("mongo:endpoint") as string;
     const documentsCollectionName = config.get("mongo:collectionNames:documents");
     const messagesCollectionName = config.get("mongo:collectionNames:scribeDeltas");
     const createCosmosDBIndexes = config.get("mongo:createCosmosDBIndexes");
-    const bufferMaxEntries = config.get("mongo:bufferMaxEntries") as number | undefined;
+
     const kafkaEndpoint = config.get("kafka:lib:endpoint");
     const kafkaLibrary = config.get("kafka:lib:name");
     const kafkaProducerPollIntervalMs = config.get("kafka:lib:producerPollIntervalMs");
@@ -38,8 +36,9 @@ export async function scribeCreate(config: Provider): Promise<IPartitionLambdaFa
     const tenantManager = new TenantManager(authEndpoint);
 
     // Access Mongo storage for pending summaries
-    const mongoFactory = new MongoDbFactory(mongoUrl, bufferMaxEntries);
-    const mongoManager = new MongoManager(mongoFactory, false);
+    const serviceFactory = new RouterlicousDbFactoryFactory(config);
+    const factory = await serviceFactory.create();
+    const mongoManager = new MongoManager(factory, false);
     const client = await mongoManager.getDatabase();
 
     const [collection, scribeDeltas] = await Promise.all([
